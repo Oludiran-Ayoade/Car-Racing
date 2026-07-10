@@ -2500,17 +2500,15 @@ function updateLoadingProgress() {
     if (bar) bar.style.width = pct + '%';
     if (loadedAssets >= totalAssets) {
         assetsLoaded = true;
-        setTimeout(() => {
-            const ls = document.getElementById('loading-screen');
-            if (ls) ls.style.display = 'none';
-        }, 500);
     }
 }
 
 treeLoadPromise.then(updateLoadingProgress).catch(updateLoadingProgress);
 carLoadPromises.forEach(p => p.then(updateLoadingProgress).catch(updateLoadingProgress));
 
-// Initialize menu state
+// Show menu immediately — assets load in the background
+const ls = document.getElementById('loading-screen');
+if (ls) ls.style.display = 'none';
 showMainMenu();
 
 animate();
