@@ -724,23 +724,48 @@ treeLoadPromise.then(() => {
     setStatus('Scenery ready.');
 });
 
-// --- Item boxes ---
+// --- Item boxes (redesigned) ---
 const itemBoxes = [];
-const itemBoxGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-const itemBoxMat = new THREE.MeshStandardMaterial({
-    color: 0xff00ff, transparent: true, opacity: 0.7,
-    emissive: 0xff00ff, emissiveIntensity: 0.3, roughness: 0.3
-});
+function createItemBoxMesh() {
+    const group = new THREE.Group();
+    // Inner glowing core
+    const coreGeo = new THREE.OctahedronGeometry(0.6, 0);
+    const coreMat = new THREE.MeshStandardMaterial({
+        color: 0xff44ff, emissive: 0xff00ff, emissiveIntensity: 0.8,
+        roughness: 0.2, metalness: 0.3
+    });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    group.add(core);
+    // Outer wireframe shell
+    const shellGeo = new THREE.OctahedronGeometry(0.95, 0);
+    const shellMat = new THREE.MeshBasicMaterial({
+        color: 0xff88ff, wireframe: true, transparent: true, opacity: 0.5
+    });
+    const shell = new THREE.Mesh(shellGeo, shellMat);
+    group.add(shell);
+    // Ring around the box
+    const ringGeo = new THREE.TorusGeometry(1.1, 0.06, 8, 32);
+    const ringMat = new THREE.MeshStandardMaterial({
+        color: 0xffccff, emissive: 0xff44ff, emissiveIntensity: 0.5,
+        roughness: 0.3, metalness: 0.5
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+    group.userData = { core, shell, ring };
+    return group;
+}
 for (let i = 0; i < 4; i++) {
     const t = 0.1 + i * 0.22;
     const p = curve.getPointAt(t);
     const tangent = curve.getTangentAt(t).clone().normalize();
     const normal = tangent.clone().cross(up).normalize();
     const offset = (i % 2 === 0 ? 1 : -1) * 3;
-    const box = new THREE.Mesh(itemBoxGeo, itemBoxMat);
-    box.position.set(p.x + normal.x * offset, 1, p.z + normal.z * offset);
-    box.castShadow = true;
-    box.userData = { active: true, respawnTimer: 0 };
+    const box = createItemBoxMesh();
+    box.position.set(p.x + normal.x * offset, 1.2, p.z + normal.z * offset);
+    box.userData.active = true;
+    box.userData.respawnTimer = 0;
+    box.traverse(c => { if (c.isMesh) c.castShadow = true; });
     scene.add(box);
     itemBoxes.push(box);
 }
@@ -840,23 +865,88 @@ function updateParticles(dt) {
     }
 }
 
-// --- Boost pads ---
+// --- Boost pads (redesigned) ---
 const boostPads = [];
+function createBoostPadMesh(p, tangent, normal) {
+    const group = new THREE.Group();
+    // Base plate
+    const baseGeo = new THREE.PlaneGeometry(ROAD_WIDTH - 2, 5);
+    const baseMat = new THREE.MeshStandardMaterial({
+        color: 0x002244, roughness: 0.4, metalness: 0.6,
+        emissive: 0x001133, emissiveIntensity: 0.3
+    });
+    const base = new THREE.Mesh(baseGeo, baseMat);
+    base.rotation.x = -Math.PI / 2;
+    group.add(base);
+    // Animated chevron arrows
+    const chevronCount = 4;
+    for (let i = 0; i < chevronCount; i++) {
+        const chevGeo = new THREE.PlaneGeometry(ROAD_WIDTH - 4, 0.8);
+        const chevCanvas = document.createElement('canvas');
+        chevCanvas.width = 256;
+        chevCanvas.height = 64;
+        const cctx = chevCanvas.getContext('2d');
+        cctx.clearRect(0, 0, 256, 64);
+        // Draw chevron arrows pointing forward
+        cctx.fillStyle = `rgba(0,255,${150 + i * 25},0.9)`;
+        cctx.beginPath();
+        cctx.moveTo(200, 32);
+        cctx.lineTo(160, 8);
+        cctx.lineTo(170, 32);
+        cctx.lineTo(160, 56);
+        cctx.closePath();
+        cctx.fill();
+        cctx.fillStyle = `rgba(0,255,${100 + i * 30},0.7)`;
+        cctx.beginPath();
+        cctx.moveTo(130, 32);
+        cctx.lineTo(90, 8);
+        cctx.lineTo(100, 32);
+        cctx.lineTo(90, 56);
+        cctx.closePath();
+        cctx.fill();
+        cctx.fillStyle = `rgba(0,255,${80 + i * 35},0.5)`;
+        cctx.beginPath();
+        cctx.moveTo(60, 32);
+        cctx.lineTo(20, 8);
+        cctx.lineTo(30, 32);
+        cctx.lineTo(20, 56);
+        cctx.closePath();
+        cctx.fill();
+        const chevTex = new THREE.CanvasTexture(chevCanvas);
+        const chevMat = new THREE.MeshBasicMaterial({
+            map: chevTex, transparent: true, opacity: 0.9,
+            blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        const chev = new THREE.Mesh(chevGeo, chevMat);
+        chev.rotation.x = -Math.PI / 2;
+        chev.position.z = -1.5 + i * 1.2;
+        chev.position.y = 0.02 + i * 0.01;
+        group.add(chev);
+    }
+    // Edge glow strips
+    const edgeGeo = new THREE.BoxGeometry(ROAD_WIDTH - 2, 0.1, 0.2);
+    const edgeMat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 1.0
+    });
+    const edgeFront = new THREE.Mesh(edgeGeo, edgeMat);
+    edgeFront.position.set(0, 0.05, 2.5);
+    group.add(edgeFront);
+    const edgeBack = new THREE.Mesh(edgeGeo, edgeMat);
+    edgeBack.position.set(0, 0.05, -2.5);
+    group.add(edgeBack);
+    // Position and orient
+    group.position.copy(p);
+    group.position.y = 0.06;
+    group.lookAt(p.clone().add(normal));
+    group.userData = { chevrons: group.children.filter(c => c.material && c.material.map) };
+    return group;
+}
 for (let i = 0; i < 3; i++) {
     const t = 0.2 + i * 0.25;
     const p = curve.getPointAt(t);
     const tangent = curve.getTangentAt(t).clone().normalize();
     const normal = tangent.clone().cross(up).normalize();
-
-    const padGeo = new THREE.BoxGeometry(ROAD_WIDTH - 2, 0.05, 4);
-    const padMat = new THREE.MeshStandardMaterial({
-        color: 0x00ffff, transparent: true, opacity: 0.6,
-        emissive: 0x00ffff, emissiveIntensity: 0.5
-    });
-    const pad = new THREE.Mesh(padGeo, padMat);
-    pad.position.copy(p);
-    pad.position.y = 0.06;
-    pad.lookAt(p.clone().add(normal));
+    const pad = createBoostPadMesh(p, tangent, normal);
     scene.add(pad);
     boostPads.push(pad);
 }
@@ -1242,10 +1332,21 @@ function updateKartPhysics(dt) {
                 box.visible = true;
             }
         }
-        // Rotate item boxes
+        // Animate item boxes
         if (box.userData.active) {
-            box.rotation.y += dt * 2;
-            box.position.y = 1 + Math.sin(performance.now() * 0.003) * 0.3;
+            const t = performance.now() * 0.001;
+            box.position.y = 1.2 + Math.sin(t * 2) * 0.3;
+            if (box.userData.core) {
+                box.userData.core.rotation.y += dt * 3;
+                box.userData.core.rotation.x += dt * 1.5;
+            }
+            if (box.userData.shell) {
+                box.userData.shell.rotation.y -= dt * 2;
+                box.userData.shell.rotation.z += dt * 1;
+            }
+            if (box.userData.ring) {
+                box.userData.ring.rotation.z += dt * 4;
+            }
         }
     }
 
@@ -1896,6 +1997,15 @@ function animate() {
         updateLapLogic();
         updateUI();
         drawMinimap();
+        // Animate boost pad chevrons
+        const bt = performance.now() * 0.003;
+        for (const pad of boostPads) {
+            if (pad.userData.chevrons) {
+                pad.userData.chevrons.forEach((c, i) => {
+                    c.material.opacity = 0.5 + Math.sin(bt + i * 0.8) * 0.4;
+                });
+            }
+        }
     } else if (gameState === GAME_STATE.MENU || gameState === GAME_STATE.PAUSED) {
         const t = performance.now() * 0.0003;
         const camR = 18;
