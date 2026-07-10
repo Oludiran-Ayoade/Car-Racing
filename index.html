@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Kart Racer</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <!-- Loading screen -->
+    <div id="loading-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#111;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <h1 style="font-size:36px;background:linear-gradient(90deg,#ff3366,#ffcc00);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:24px;">Web Kart Racer</h1>
+        <div style="width:300px;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+            <div id="loading-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#ff3366,#ffcc00);border-radius:4px;transition:width 0.3s ease;"></div>
+        </div>
+        <p id="loading-text" style="color:#aaa;margin-top:12px;font-size:14px;">Loading...</p>
+    </div>
+
+    <!-- Vignette -->
+    <div id="vignette" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;box-shadow:inset 0 0 200px rgba(0,0,0,0.5);"></div>
+    <!-- Speed lines overlay -->
+    <canvas id="speedlines" width="1920" height="1080" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6;display:none;"></canvas>
+    <!-- Boost glow overlay -->
+    <div id="boost-glow" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6;box-shadow:inset 0 0 120px rgba(255,180,0,0);transition:box-shadow 0.2s ease;"></div>
+    <!-- Lap flash overlay -->
+    <div id="lap-flash" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:6;background:rgba(50,255,50,0);transition:background 0.3s ease;"></div>
+    <!-- Drift score display -->
+    <div id="drift-score" style="position:fixed;top:50%;left:30px;transform:translateY(-50%);z-index:7;display:none;background:rgba(0,0,0,0.5);border-radius:12px;padding:10px 16px;font-size:14px;font-weight:700;color:#ffcc00;pointer-events:none;">
+        <div style="font-size:10px;color:#aaa;">DRIFT</div>
+        <div id="drift-score-value" style="font-size:24px;">0</div>
+    </div>
+
+    <div id="ui">
+        <div id="hud">
+            <div class="panel">
+                <div class="label">LAP</div>
+                <div class="value" id="lap-display">1 / 3</div>
+            </div>
+            <div class="panel">
+                <div class="label">TIME</div>
+                <div class="value" id="time-display">0.00</div>
+            </div>
+            <div class="panel" id="lastlap-panel" style="display:none;">
+                <div class="label">LAST LAP</div>
+                <div class="value" id="lastlap-display" style="font-size:20px;">0.00</div>
+            </div>
+            <div class="panel">
+                <div class="label">SPEED</div>
+                <div class="value"><span id="speed-display">0</span> <span class="unit">km/h</span></div>
+            </div>
+            <div class="panel" id="delta-panel" style="display:none;">
+                <div class="label">DELTA</div>
+                <div class="value" id="delta-display" style="font-size:20px;">+0.00</div>
+            </div>
+            <div class="panel" id="position-panel" style="display:none;">
+                <div class="label">POS</div>
+                <div class="value" id="position-display">1/4</div>
+            </div>
+            <div class="panel" id="boost-panel" style="display:none;">
+                <div class="label">BOOST</div>
+                <div class="value" id="boost-display" style="color:#ffcc00;">READY</div>
+            </div>
+        </div>
+        <canvas id="speedometer" width="140" height="140" style="position:absolute;top:20px;right:20px;display:none;"></canvas>
+        <canvas id="minimap" width="160" height="160" style="position:absolute;bottom:20px;right:20px;display:none;border-radius:12px;background:rgba(0,0,0,0.5);"></canvas>
+        <canvas id="rearview" width="200" height="100" style="position:absolute;top:20px;left:20px;display:none;border-radius:8px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);"></canvas>
+        <div id="item-indicator" style="position:absolute;top:50%;right:30px;transform:translateY(-50%);display:none;background:rgba(0,0,0,0.6);border-radius:12px;padding:12px 16px;font-size:14px;font-weight:700;">
+            <span id="item-name">None</span>
+        </div>
+        <div id="message" class="hidden"></div>
+        <div id="controls-help">
+            <p><strong>Controls:</strong> Arrow keys / WASD to drive &middot; Space to drift &middot; R to reset &middot; Esc to pause</p>
+        </div>
+        <!-- Mobile touch controls -->
+        <div id="mobile-controls" style="display:none;">
+            <div id="touch-left" class="touch-btn"></div>
+            <div id="touch-right" class="touch-btn"></div>
+            <div id="touch-gas" class="touch-btn gas"></div>
+            <div id="touch-brake" class="touch-btn brake"></div>
+        </div>
+    </div>
+    <div id="error-box" style="display:none; position:fixed; top:10px; right:10px; max-width:400px; background:rgba(180,0,0,0.9); color:#fff; padding:16px; border-radius:8px; font-family:monospace; font-size:13px; z-index:100; white-space:pre-wrap; pointer-events:auto;"></div>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="overlay">
+        <div class="menu-card">
+            <h1>Web Kart Racer</h1>
+            <p class="subtitle">3D browser racing game</p>
+            <button class="menu-btn primary" id="btn-start">Select Car &amp; Race</button>
+            <button class="menu-btn" id="btn-settings">Settings</button>
+            <button class="menu-btn" id="btn-howto">How to Play</button>
+            <button class="menu-btn" id="btn-leaderboard">Leaderboard</button>
+        </div>
+    </div>
+
+    <!-- Car Selection -->
+    <div id="car-select" class="overlay hidden">
+        <div class="menu-card wide">
+            <h2>Select Your Car</h2>
+            <div class="car-grid" id="car-grid">
+                <div class="car-card" data-car="0">
+                    <canvas class="car-preview" width="120" height="90" data-car="0"></canvas>
+                    <p>Speedster</p>
+                </div>
+                <div class="car-card" data-car="1">
+                    <canvas class="car-preview" width="120" height="90" data-car="1"></canvas>
+                    <p>Roadster</p>
+                </div>
+                <div class="car-card" data-car="2">
+                    <canvas class="car-preview" width="120" height="90" data-car="2"></canvas>
+                    <p>Bulldog</p>
+                </div>
+                <div class="car-card" data-car="3">
+                    <canvas class="car-preview" width="120" height="90" data-car="3"></canvas>
+                    <p>Falcon</p>
+                </div>
+                <div class="car-card" data-car="4">
+                    <canvas class="car-preview" width="120" height="90" data-car="4"></canvas>
+                    <p>Viper</p>
+                </div>
+            </div>
+            <div id="car-stats" style="display:none;">
+                <div class="stat-bar"><span>Speed</span><div class="bar"><div class="fill" id="stat-speed"></div></div></div>
+                <div class="stat-bar"><span>Handling</span><div class="bar"><div class="fill" id="stat-handling"></div></div></div>
+                <div class="stat-bar"><span>Weight</span><div class="bar"><div class="fill" id="stat-weight"></div></div></div>
+            </div>
+            <div class="color-picker" id="color-picker">
+                <p style="font-size:13px;color:#aaa;margin-bottom:8px;">Car Color:</p>
+                <div class="color-swatches" id="color-swatches">
+                    <div class="color-swatch selected" data-color="0xff3366" style="background:#ff3366;"></div>
+                    <div class="color-swatch" data-color="0x3366ff" style="background:#3366ff;"></div>
+                    <div class="color-swatch" data-color="0x33cc33" style="background:#33cc33;"></div>
+                    <div class="color-swatch" data-color="0xffcc00" style="background:#ffcc00;"></div>
+                    <div class="color-swatch" data-color="0xcc33ff" style="background:#cc33ff;"></div>
+                    <div class="color-swatch" data-color="0xff6600" style="background:#ff6600;"></div>
+                    <div class="color-swatch" data-color="0x00cccc" style="background:#00cccc;"></div>
+                    <div class="color-swatch" data-color="0xffffff" style="background:#ffffff;"></div>
+                </div>
+            </div>
+            <button class="menu-btn primary" id="btn-race">Race!</button>
+            <button class="menu-btn" id="btn-car-back">Back</button>
+        </div>
+    </div>
+
+    <!-- Finish Screen -->
+    <div id="finish-screen" class="overlay hidden">
+        <div class="menu-card">
+            <h1 style="background:linear-gradient(90deg,#ffcc00,#ff3366);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Race Complete!</h1>
+            <div id="finish-stats" style="margin:20px 0;text-align:center;font-size:16px;line-height:2;">
+                <div>Total Time: <span id="finish-total" style="color:#ffcc00;font-weight:700;">0.00s</span></div>
+                <div>Best Lap: <span id="finish-bestlap" style="color:#33ff33;font-weight:700;">0.00s</span></div>
+                <div>Position: <span id="finish-position" style="color:#ff3366;font-weight:700;">1/4</span></div>
+                <div>Top Speed: <span id="finish-topspeed" style="color:#33ccff;font-weight:700;">0 km/h</span></div>
+            </div>
+            <button class="menu-btn primary" id="btn-finish-restart">Race Again</button>
+            <button class="menu-btn" id="btn-finish-menu">Main Menu</button>
+        </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pause-menu" class="overlay hidden">
+        <div class="menu-card">
+            <h2>Paused</h2>
+            <button class="menu-btn primary" id="btn-resume">Resume</button>
+            <button class="menu-btn" id="btn-restart">Restart</button>
+            <button class="menu-btn" id="btn-pause-settings">Settings</button>
+            <button class="menu-btn" id="btn-quit">Main Menu</button>
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" class="overlay hidden">
+        <div class="menu-card">
+            <h2>Settings</h2>
+            <div class="setting-row">
+                <label>Graphics Quality</label>
+                <select id="quality-select">
+                    <option value="high">High</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>Shadows</label>
+                <input type="checkbox" id="shadows-check" checked>
+            </div>
+            <div class="setting-row">
+                <label>Music / SFX</label>
+                <input type="checkbox" id="sound-check" checked>
+            </div>
+            <button class="menu-btn primary" id="btn-settings-back">Back</button>
+        </div>
+    </div>
+
+    <!-- How to Play Panel -->
+    <div id="howto-panel" class="overlay hidden">
+        <div class="menu-card">
+            <h2>How to Play</h2>
+            <ul class="controls-list">
+                <li><strong>W / ↑</strong> Accelerate</li>
+                <li><strong>S / ↓</strong> Brake / Reverse</li>
+                <li><strong>A / D</strong> or <strong>← / →</strong> Steer</li>
+                <li><strong>Space</strong> Drift</li>
+                <li><strong>R</strong> Reset kart</li>
+                <li><strong>Esc / P</strong> Pause</li>
+            </ul>
+            <p class="hint">Complete 3 laps as fast as you can. Drive over blue boost pads for a speed boost.</p>
+            <button class="menu-btn primary" id="btn-howto-back">Back</button>
+        </div>
+    </div>
+
+    <!-- Leaderboard Panel -->
+    <div id="leaderboard-panel" class="overlay hidden">
+        <div class="menu-card">
+            <h2>Leaderboard</h2>
+            <p style="color:#aaa;font-size:14px;margin-bottom:16px;">Best lap times (stored locally)</p>
+            <div id="leaderboard-list" style="text-align:left;margin-bottom:20px;"></div>
+            <button class="menu-btn" id="btn-clear-leaderboard">Clear Records</button>
+            <button class="menu-btn primary" id="btn-leaderboard-back">Back</button>
+        </div>
+    </div>
+
+    <script>
+        const errorBox = document.getElementById('error-box');
+        window.onerror = function(msg, url, line, col, err) {
+            errorBox.style.display = 'block';
+            errorBox.textContent = 'ERROR: ' + msg + '\n@' + url + ':' + line + ':' + col;
+            console.error(err);
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+            errorBox.style.display = 'block';
+            errorBox.textContent = 'PROMISE ERROR: ' + e.reason;
+            console.error(e.reason);
+        });
+    </script>
+    <script type="module" src="game.js"></script>
+</body>
+</html>
