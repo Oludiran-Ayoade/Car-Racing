@@ -2372,6 +2372,116 @@ setupTouch('touch-right', 'right');
 setupTouch('touch-gas', 'up');
 setupTouch('touch-brake', 'down');
 
+// Swipe gestures on the main game area for acceleration/braking/steering
+let swipeTouchId = null;
+let swipeStartX = 0, swipeStartY = 0;
+let swipeLastX = 0, swipeLastY = 0;
+let swipeHoldTimer = 0;
+let isSwipeAccelerating = false;
+let isSwipeBraking = false;
+
+const gameArea = document.getElementById('ui');
+
+gameArea.addEventListener('touchstart', e => {
+    if (gameState !== GAME_STATE.PLAYING) return;
+    // Ignore touches on touch buttons
+    if (e.target.closest('.touch-btn')) return;
+    if (swipeTouchId !== null) return;
+    const t = e.changedTouches[0];
+    swipeTouchId = t.identifier;
+    swipeStartX = t.clientX;
+    swipeStartY = t.clientY;
+    swipeLastX = t.clientX;
+    swipeLastY = t.clientY;
+    swipeHoldTimer = performance.now();
+    isSwipeAccelerating = false;
+    isSwipeBraking = false;
+}, { passive: true });
+
+gameArea.addEventListener('touchmove', e => {
+    if (gameState !== GAME_STATE.PLAYING) return;
+    if (swipeTouchId === null) return;
+    for (const t of e.changedTouches) {
+        if (t.identifier !== swipeTouchId) continue;
+        const dx = t.clientX - swipeStartX;
+        const dy = t.clientY - swipeStartY;
+        const adx = Math.abs(dx);
+        const ady = Math.abs(dy);
+
+        // Swipe up to accelerate
+        if (dy < -40 && ady > adx) {
+            if (!isSwipeAccelerating) {
+                keys.up = true;
+                isSwipeAccelerating = true;
+                keys.down = false;
+                isSwipeBraking = false;
+            }
+        }
+        // Swipe down to brake
+        else if (dy > 40 && ady > adx) {
+            if (!isSwipeBraking) {
+                keys.down = true;
+                isSwipeBraking = true;
+                keys.up = false;
+                isSwipeAccelerating = false;
+            }
+        }
+
+        // Horizontal swipe for steering
+        if (adx > 30) {
+            keys.left = dx < -30;
+            keys.right = dx > 30;
+        } else {
+            keys.left = false;
+            keys.right = false;
+        }
+
+        swipeLastX = t.clientX;
+        swipeLastY = t.clientY;
+    }
+}, { passive: true });
+
+gameArea.addEventListener('touchend', e => {
+    if (swipeTouchId === null) return;
+    for (const t of e.changedTouches) {
+        if (t.identifier !== swipeTouchId) continue;
+        // Quick tap = accelerate burst (hold to speed)
+        const elapsed = performance.now() - swipeHoldTimer;
+        const dy = t.clientY - swipeStartY;
+        const dx = t.clientX - swipeStartX;
+        if (elapsed < 200 && Math.abs(dy) < 20 && Math.abs(dx) < 20) {
+            // Quick tap — hold to accelerate for 1.5s
+            keys.up = true;
+            setTimeout(() => { keys.up = false; }, 1500);
+        }
+        // Release everything
+        keys.up = false;
+        keys.down = false;
+        keys.left = false;
+        keys.right = false;
+        isSwipeAccelerating = false;
+        isSwipeBraking = false;
+        swipeTouchId = null;
+    }
+}, { passive: true });
+
+// Hold-to-speed: holding finger on screen accelerates continuously
+let holdInterval = null;
+gameArea.addEventListener('touchstart', e => {
+    if (gameState !== GAME_STATE.PLAYING) return;
+    if (e.target.closest('.touch-btn')) return;
+    // After 300ms of holding without much movement, treat as hold-to-accelerate
+    const t = e.changedTouches[0];
+    const startX = t.clientX;
+    const startY = t.clientY;
+    setTimeout(() => {
+        if (swipeTouchId === t.identifier && Math.abs(swipeLastX - startX) < 20 && Math.abs(swipeLastY - startY) < 20) {
+            keys.up = true;
+            isSwipeAccelerating = true;
+        }
+    }, 300);
+}, { passive: true });
+
 // Auto-select first car by default
 document.querySelector('.car-card').classList.add('selected');
 selectedCarIndex = 0;
