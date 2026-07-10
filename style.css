@@ -27,8 +27,11 @@ html, body {
     position: absolute;
     top: 20px;
     left: 20px;
+    right: 180px;
     display: flex;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+    max-width: calc(100% - 200px);
 }
 
 .panel {
@@ -240,13 +243,14 @@ html, body {
 }
 
 .menu-card.wide {
-    min-width: 600px;
+    min-width: 280px;
     max-width: 700px;
+    width: 90%;
 }
 
 .car-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     gap: 10px;
     margin-bottom: 20px;
 }
@@ -319,25 +323,146 @@ html, body {
     transition: width 0.3s ease;
 }
 
+#rearview {
+    z-index: 8;
+}
+
+@media (max-width: 900px) {
+    #hud {
+        right: 150px;
+        max-width: calc(100% - 170px);
+    }
+    #speedometer {
+        width: 110px !important;
+        height: 110px !important;
+    }
+    #minimap {
+        width: 130px !important;
+        height: 130px !important;
+    }
+    #rearview {
+        width: 160px !important;
+        height: 80px !important;
+    }
+}
+
 @media (max-width: 600px) {
     #hud {
-        top: 12px;
-        left: 12px;
-        gap: 10px;
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        gap: 6px;
+        max-width: calc(100% - 16px);
     }
     .panel {
-        padding: 8px 12px;
-        min-width: 70px;
+        padding: 6px 10px;
+        min-width: 60px;
+        border-radius: 8px;
+    }
+    .panel .label {
+        font-size: 9px;
+        letter-spacing: 1px;
     }
     .panel .value {
-        font-size: 20px;
+        font-size: 16px;
+    }
+    .panel .unit {
+        font-size: 10px;
+    }
+    #speedometer {
+        width: 90px !important;
+        height: 90px !important;
+        top: auto !important;
+        bottom: 10px !important;
+        right: 10px !important;
+    }
+    #minimap {
+        width: 100px !important;
+        height: 100px !important;
+        bottom: 10px !important;
+        right: 110px !important;
+    }
+    #rearview {
+        display: none !important;
+    }
+    #drift-score {
+        left: 8px !important;
+        padding: 6px 10px !important;
+    }
+    #drift-score-value {
+        font-size: 18px !important;
+    }
+    #item-indicator {
+        right: 10px !important;
+        padding: 8px 12px !important;
+        font-size: 12px !important;
     }
     #controls-help {
-        font-size: 12px;
-        padding: 8px 12px;
+        font-size: 11px;
+        padding: 6px 10px;
         border-radius: 12px;
         text-align: center;
-        width: 90%;
+        width: 92%;
+        bottom: 120px;
+    }
+    .menu-card {
+        padding: 24px 20px;
+    }
+    .menu-card h1 {
+        font-size: 28px;
+    }
+    .menu-card h2 {
+        font-size: 24px;
+        margin-bottom: 16px;
+    }
+    .menu-btn {
+        padding: 12px 16px;
+        font-size: 14px;
+    }
+    .car-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    .car-card .car-preview {
+        width: 100%;
+        height: auto;
+    }
+    #message {
+        font-size: 42px !important;
+    }
+    .touch-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 20px;
+    }
+    #touch-left {
+        bottom: 20px;
+        left: 15px;
+    }
+    #touch-right {
+        bottom: 20px;
+        left: 85px;
+    }
+    #touch-gas {
+        bottom: 20px;
+        right: 85px;
+    }
+    #touch-brake {
+        bottom: 20px;
+        right: 15px;
+    }
+}
+
+@media (max-width: 400px) {
+    .panel {
+        min-width: 50px;
+        padding: 5px 8px;
+    }
+    .panel .value {
+        font-size: 14px;
+    }
+    .car-grid {
+        grid-template-columns: 1fr 1fr;
     }
 }
 
