@@ -2344,19 +2344,33 @@ document.querySelectorAll('.car-card').forEach((card, i) => {
     }
 });
 
+// Track color per car so changing one doesn't change all previews
+const selectedCarColors = CAR_CONFIGS.map(cfg => cfg.color);
+
 // Color picker
 document.querySelectorAll('.color-swatch').forEach(swatch => {
     swatch.addEventListener('click', () => {
         document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
         swatch.classList.add('selected');
         selectedCarColor = parseInt(swatch.dataset.color);
-        // Redraw all car previews with new color
-        document.querySelectorAll('.car-card').forEach((card, i) => {
-            const canvas = card.querySelector('canvas');
-            if (canvas) drawCarPreview(canvas, i, selectedCarColor);
-        });
+        selectedCarColors[selectedCarIndex] = selectedCarColor;
+        // Redraw only the selected car preview with new color
+        const card = document.querySelector(`.car-card[data-car="${selectedCarIndex}"]`);
+        const canvas = card ? card.querySelector('canvas') : null;
+        if (canvas) drawCarPreview(canvas, selectedCarIndex, selectedCarColor);
     });
 });
+
+// Update color picker to match the newly selected car
+const originalSelectCar = selectCar;
+selectCar = function(index) {
+    originalSelectCar(index);
+    const color = selectedCarColors[index];
+    selectedCarColor = color;
+    document.querySelectorAll('.color-swatch').forEach(s => {
+        s.classList.toggle('selected', parseInt(s.dataset.color) === color);
+    });
+};
 
 // Mobile touch controls
 function setupTouch(id, key) {
