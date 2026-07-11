@@ -1459,6 +1459,13 @@ function updateLapLogic() {
                 kartState.finished = true;
                 const totalTime = ((performance.now() - kartState.startTime) / 1000).toFixed(2);
                 playSound('lap');
+                // Compute final position immediately — before progress gets
+                // overwritten to 3.0 by updateKartPhysics on the next frame
+                const totalRacers = 1 + aiKarts.length;
+                let finalPos = 1;
+                for (const ai of aiKarts) {
+                    if (ai.finished || ai.progress > kartState.progress) finalPos++;
+                }
                 // Save to leaderboard
                 saveLeaderboard(parseFloat(totalTime));
                 // Stop ghost recording
@@ -1475,14 +1482,7 @@ function updateLapLogic() {
                     hideAllMenus();
                     document.getElementById('finish-total').textContent = totalTime + 's';
                     document.getElementById('finish-bestlap').textContent = (bestLapTime !== null ? bestLapTime.toFixed(2) : 'N/A') + 's';
-                    // Compute final position
-                    const allR = [{ progress: kartState.progress, finished: true }];
-                    for (const ai of aiKarts) allR.push({ progress: ai.progress, finished: ai.finished });
-                    let finalPos = 1;
-                    for (const r of allR) {
-                        if (r !== allR[0] && r.progress > kartState.progress) finalPos++;
-                    }
-                    document.getElementById('finish-position').textContent = `${finalPos}/${allR.length}`;
+                    document.getElementById('finish-position').textContent = `${finalPos}/${totalRacers}`;
                     document.getElementById('finish-topspeed').textContent = topSpeed + ' km/h';
                     document.getElementById('finish-screen').classList.remove('hidden');
                 }, 1500);
@@ -1536,12 +1536,9 @@ function updateUI() {
     for (const ai of aiKarts) {
         allRacers.push({ progress: ai.progress, finished: ai.finished });
     }
-    allRacers.sort((a, b) => b.progress - a.progress);
-    const playerPos = allRacers.findIndex(r => r === allRacers[0] && r.progress === kartState.progress) + 1;
-    // Simpler: count how many have higher progress
     let pos = 1;
-    for (const r of allRacers) {
-        if (r !== allRacers[0] && r.progress > kartState.progress) pos++;
+    for (const ai of aiKarts) {
+        if (ai.finished || ai.progress > kartState.progress) pos++;
     }
     const posEl = document.getElementById('position-display');
     const posPanel = document.getElementById('position-panel');
