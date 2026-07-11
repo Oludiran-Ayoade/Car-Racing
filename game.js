@@ -21,6 +21,7 @@ const TRACK_SCALE = 1.0;
 const ROAD_WIDTH = 32;
 const ROAD_HALF_WIDTH = ROAD_WIDTH / 2;
 const TOTAL_LAPS = 3;
+const KART_RADIUS = 1.1; // collision radius for all karts
 
 const MAX_SPEED = 120;
 const ACCELERATION = 65;
@@ -1062,6 +1063,20 @@ function clampToRoad(pos) {
     return { x: pos.x, z: pos.z, hit: false };
 }
 
+function resolveKartCollision(posA, posB) {
+    const dx = posB.x - posA.x;
+    const dz = posB.z - posA.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const minDist = KART_RADIUS * 2;
+    if (dist >= minDist || dist === 0) return null;
+    const overlap = minDist - dist;
+    const nx = dx / dist;
+    const nz = dz / dist;
+    const pushA = { x: -nx * overlap * 0.5, z: -nz * overlap * 0.5 };
+    const pushB = { x: nx * overlap * 0.5, z: nz * overlap * 0.5 };
+    return { pushA, pushB, overlap };
+}
+
 function showMessage(text, duration = 2000) {
     const msgEl = document.getElementById('message');
     msgEl.textContent = text;
@@ -1103,6 +1118,7 @@ function resetKart() {
         ai.lap = 1;
         ai.finished = false;
         ai.finishPosition = null;
+        ai.speed = ai.baseSpeed;
     }
     showMessage('GO!', 1200);
 }
@@ -1277,6 +1293,34 @@ function updateKartPhysics(dt) {
         playSound('crash');
         createParticleBurst(kartState.position.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xff3333, 6, 0.4);
         createSmokePuff(kartState.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 0.5, 0x666666, 1.0);
+    }
+
+    // Player vs AI kart collisions
+    for (const ai of aiKarts) {
+        if (ai.finished) continue;
+        const resolution = resolveKartCollision(kartState.position, ai.mesh.position);
+        if (resolution) {
+            kartState.position.x += resolution.pushA.x;
+            kartState.position.z += resolution.pushA.z;
+            ai.mesh.position.x += resolution.pushB.x;
+            ai.mesh.position.z += resolution.pushB.z;
+            // Dampen velocities / speeds
+            kartState.velocity *= 0.6;
+            ai.speed *= 0.7;
+            // Effects for notable impacts
+            if (resolution.overlap > 0.2 && kartState.shieldTimer <= 0) {
+                screenShake = 0.15;
+                playSound('crash');
+                createParticleBurst(kartState.position.clone().add(new THREE.Vector3(0, 0.4, 0)), 0xffaa00, 5, 0.35);
+                createSmokePuff(kartState.position.clone().add(new THREE.Vector3(0, 0.2, 0)), 0.4, 0x666666, 0.8);
+            }
+            // Keep AI on the road
+            const aiClamp = clampToRoad(ai.mesh.position);
+            if (aiClamp.hit) {
+                ai.mesh.position.x = aiClamp.x;
+                ai.mesh.position.z = aiClamp.z;
+            }
+        }
     }
 
     // Tree collision
@@ -1883,6 +1927,7 @@ function createAIKarts() {
             finished: false,
             targetT: 0,
             speed: 80 + Math.random() * 30,
+            baseSpeed: 80 + Math.random() * 30,
             color: aiColors[i],
             name: aiNames[i],
             offset: (Math.random() - 0.5) * 4,
@@ -1898,6 +1943,9 @@ function updateAIKarts(dt) {
 
     for (const ai of aiKarts) {
         if (ai.finished) continue;
+
+        // Recover speed after collisions
+        ai.speed += (ai.baseSpeed - ai.speed) * 0.5 * dt;
 
         // Slow down in tight corners, speed up on straights
         const tangent = curve.getTangentAt(ai.targetT).clone().normalize();
@@ -1937,6 +1985,29 @@ function updateAIKarts(dt) {
             ai.label.position.set(ai.mesh.position.x, 3.5, ai.mesh.position.z);
         }
         ai.progress = aiProgress;
+    }
+
+    // AI vs AI kart collisions
+    for (let i = 0; i < aiKarts.length; i++) {
+        const a = aiKarts[i];
+        if (a.finished) continue;
+        for (let j = i + 1; j < aiKarts.length; j++) {
+            const b = aiKarts[j];
+            if (b.finished) continue;
+            const resolution = resolveKartCollision(a.mesh.position, b.mesh.position);
+            if (resolution) {
+                a.mesh.position.x += resolution.pushA.x;
+                a.mesh.position.z += resolution.pushA.z;
+                b.mesh.position.x += resolution.pushB.x;
+                b.mesh.position.z += resolution.pushB.z;
+                a.speed *= 0.8;
+                b.speed *= 0.8;
+                const clampA = clampToRoad(a.mesh.position);
+                const clampB = clampToRoad(b.mesh.position);
+                if (clampA.hit) { a.mesh.position.x = clampA.x; a.mesh.position.z = clampA.z; }
+                if (clampB.hit) { b.mesh.position.x = clampB.x; b.mesh.position.z = clampB.z; }
+            }
+        }
     }
 }
 
