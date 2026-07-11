@@ -501,7 +501,7 @@ function updateEngineSound(speed) {
     const throttle = keys.up ? 1 : 0;
     const freq = 60 + Math.abs(speed) * 2.2 + throttle * 20;
     // Engine audible when throttle or coasting at speed; idle silent
-    const vol = (gameState === GAME_STATE.PLAYING && (keys.up || Math.abs(speed) > 10)) ? (0.04 + throttle * 0.03) : 0;
+    const vol = (gameState === GAME_STATE.PLAYING && !kartState.finished && (keys.up || Math.abs(speed) > 10)) ? (0.04 + throttle * 0.03) : 0;
     engineSound.frequency.value += (freq - engineSound.frequency.value) * 0.1;
     engineSound._gain.gain.value += (vol - engineSound._gain.gain.value) * 0.1;
 
