@@ -963,12 +963,14 @@ const kartState = {
     lap: 1,
     checkpointIndex: 0,
     finished: false,
+    finishPosition: null,
     startTime: performance.now(),
     lapStartTime: performance.now(),
     driftTimer: 0,
     shieldTimer: 0,
     progress: 0 // for position tracking
 };
+let nextFinishPosition = 1;
 
 // --- Input ---
 const keys = { up: false, down: false, left: false, right: false, brake: false, reset: false };
@@ -1072,9 +1074,11 @@ function resetKart() {
     kartState.lapStartTime = performance.now();
     kartState.startTime = performance.now();
     kartState.finished = false;
+    kartState.finishPosition = null;
     kartState.driftTimer = 0;
     kartState.shieldTimer = 0;
     kartState.progress = 0;
+    nextFinishPosition = 1;
     lastLapTime = null;
     topSpeed = 0;
     playerItem = null;
@@ -1093,6 +1097,7 @@ function resetKart() {
         ai.progress = 0;
         ai.lap = 1;
         ai.finished = false;
+        ai.finishPosition = null;
     }
     showMessage('GO!', 1200);
 }
@@ -1457,14 +1462,19 @@ function updateLapLogic() {
 
             if (kartState.lap > TOTAL_LAPS) {
                 kartState.finished = true;
+                // Mark player as fully completed so progress comparisons are
+                // accurate (otherwise player progress would be ~2.94 at the
+                // finish line while an AI at 95% of the same lap is ~2.95).
+                kartState.progress = TOTAL_LAPS;
+                kartState.finishPosition = nextFinishPosition++;
                 const totalTime = ((performance.now() - kartState.startTime) / 1000).toFixed(2);
                 playSound('lap');
-                // Compute final position immediately — before progress gets
-                // overwritten to 3.0 by updateKartPhysics on the next frame
+                // Compute final position immediately — count any AI that has
+                // already finished as ahead of the player.
                 const totalRacers = 1 + aiKarts.length;
                 let finalPos = 1;
                 for (const ai of aiKarts) {
-                    if (ai.finished || ai.progress > kartState.progress) finalPos++;
+                    if (ai.finished) finalPos++;
                 }
                 // Save to leaderboard
                 saveLeaderboard(parseFloat(totalTime));
@@ -1532,13 +1542,19 @@ function updateUI() {
     }
 
     // Position display
-    const allRacers = [{ progress: kartState.progress, finished: kartState.finished }];
+    const allRacers = [{ progress: kartState.progress, finished: kartState.finished, finishPosition: kartState.finishPosition }];
     for (const ai of aiKarts) {
-        allRacers.push({ progress: ai.progress, finished: ai.finished });
+        allRacers.push({ progress: ai.progress, finished: ai.finished, finishPosition: ai.finishPosition });
     }
     let pos = 1;
     for (const ai of aiKarts) {
-        if (ai.finished || ai.progress > kartState.progress) pos++;
+        if (ai.finished && kartState.finished) {
+            if (ai.finishPosition < kartState.finishPosition) pos++;
+        } else if (ai.finished) {
+            pos++; // AI finished before player
+        } else if (!kartState.finished && ai.progress > kartState.progress) {
+            pos++; // AI ahead on track
+        }
     }
     const posEl = document.getElementById('position-display');
     const posPanel = document.getElementById('position-panel');
@@ -1862,7 +1878,8 @@ function createAIKarts() {
             speed: 80 + Math.random() * 30,
             color: aiColors[i],
             name: aiNames[i],
-            offset: (Math.random() - 0.5) * 4
+            offset: (Math.random() - 0.5) * 4,
+            finishPosition: null
         });
     }
 }
@@ -1894,6 +1911,8 @@ function updateAIKarts(dt) {
             ai.lap++;
             if (ai.lap > TOTAL_LAPS) {
                 ai.finished = true;
+                ai.progress = TOTAL_LAPS; // mark as fully completed
+                ai.finishPosition = nextFinishPosition++;
                 continue;
             }
         }
