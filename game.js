@@ -1876,6 +1876,8 @@ function createAIKarts() {
         aiKarts.push({
             mesh: mesh,
             label: label,
+            modelIdx: modelIdx,
+            hasRealModel: !!carModels[modelIdx],
             progress: 0,
             lap: 1,
             finished: false,
@@ -2002,6 +2004,22 @@ function showLeaderboard() {
     show(document.getElementById('leaderboard-panel'));
 }
 
+function upgradeAIModels() {
+    for (const ai of aiKarts) {
+        if (ai.hasRealModel || ai.modelIdx === null || ai.modelIdx === undefined) continue;
+        const model = carModels[ai.modelIdx];
+        if (!model) continue;
+        const newMesh = model.clone();
+        newMesh.position.copy(ai.mesh.position);
+        newMesh.rotation.copy(ai.mesh.rotation);
+        newMesh.scale.copy(ai.mesh.scale);
+        scene.remove(ai.mesh);
+        scene.add(newMesh);
+        ai.mesh = newMesh;
+        ai.hasRealModel = true;
+    }
+}
+
 function animate() {
     requestAnimationFrame(animate);
     clearStatus();
@@ -2010,6 +2028,7 @@ function animate() {
     if (gameState === GAME_STATE.PLAYING) {
         updateKartPhysics(dt);
         updateAIKarts(dt);
+        upgradeAIModels();
         updateGhost(dt);
         updateParticles(dt);
         updateSmoke(dt);
@@ -2155,26 +2174,34 @@ function spawnPlayerKart() {
 }
 
 function startGame() {
-    // Wait for car models to finish loading before starting the race
-    if (!assetsLoaded) {
+    // Only wait for the player's selected car model. AI models load in the
+    // background and are swapped in once they're available.
+    if (!carModels[selectedCarIndex]) {
         const raceBtn = document.getElementById('btn-race');
         if (raceBtn) {
-            raceBtn.textContent = 'Loading cars...';
+            raceBtn.textContent = 'Loading your car...';
             raceBtn.disabled = true;
         }
         const startBtn = document.getElementById('btn-start');
         if (startBtn) {
-            startBtn.textContent = 'Loading cars...';
+            startBtn.textContent = 'Loading your car...';
             startBtn.disabled = true;
         }
         const checkInterval = setInterval(() => {
-            if (assetsLoaded) {
+            if (carModels[selectedCarIndex]) {
                 clearInterval(checkInterval);
+                if (timeoutId) clearTimeout(timeoutId);
                 if (raceBtn) { raceBtn.textContent = 'Race!'; raceBtn.disabled = false; }
                 if (startBtn) { startBtn.textContent = 'Select Car & Race'; startBtn.disabled = false; }
                 startGame();
             }
         }, 200);
+        const timeoutId = setTimeout(() => {
+            clearInterval(checkInterval);
+            if (raceBtn) { raceBtn.textContent = 'Race!'; raceBtn.disabled = false; }
+            if (startBtn) { startBtn.textContent = 'Select Car & Race'; startBtn.disabled = false; }
+            startGame();
+        }, 8000);
         return;
     }
     initAudio();
