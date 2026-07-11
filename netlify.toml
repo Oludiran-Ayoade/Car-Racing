@@ -1,2 +1,14 @@
 [build]
   publish = "."
+
+[[headers]]
+  for = "*.obj"
+  [headers.values]
+    Content-Type = "application/octet-stream"
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "*.png"
+  [headers.values]
+    Content-Type = "image/png"
+    Access-Control-Allow-Origin = "*"

@@ -187,6 +187,12 @@ html, body {
     background: linear-gradient(90deg, #ff5c8a, #ff85a7);
 }
 
+.menu-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .setting-row {
     display: flex;
     justify-content: space-between;

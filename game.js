@@ -582,16 +582,21 @@ const treeLoadPromise = loadOBJWithTexture('cargame/tree').then(obj => {
     setStatus('Tree load failed: ' + err.message);
 });
 
-// Load all car models
+// Load all car models (with retry)
 setStatus('Loading car models...');
-const carLoadPromises = CAR_CONFIGS.map((cfg, i) => {
+function loadCarWithRetry(cfg, i, retries = 2) {
     return loadOBJWithTexture(cfg.path).then(obj => {
         carModels[i] = normalizeModel(obj, 3.5);
         setStatus(`Loaded car ${i + 1}/${CAR_CONFIGS.length}...`);
     }).catch(err => {
-        console.error(`Car ${i} load error:`, err);
+        console.error(`Car ${i} load error (attempt ${3 - retries}):`, err);
+        if (retries > 0) {
+            return new Promise(resolve => setTimeout(resolve, 1000))
+                .then(() => loadCarWithRetry(cfg, i, retries - 1));
+        }
     });
-});
+}
+const carLoadPromises = CAR_CONFIGS.map((cfg, i) => loadCarWithRetry(cfg, i));
 
 // --- Scenery: trees, rocks, fences and billboards ---
 function addScenery() {
@@ -2150,6 +2155,28 @@ function spawnPlayerKart() {
 }
 
 function startGame() {
+    // Wait for car models to finish loading before starting the race
+    if (!assetsLoaded) {
+        const raceBtn = document.getElementById('btn-race');
+        if (raceBtn) {
+            raceBtn.textContent = 'Loading cars...';
+            raceBtn.disabled = true;
+        }
+        const startBtn = document.getElementById('btn-start');
+        if (startBtn) {
+            startBtn.textContent = 'Loading cars...';
+            startBtn.disabled = true;
+        }
+        const checkInterval = setInterval(() => {
+            if (assetsLoaded) {
+                clearInterval(checkInterval);
+                if (raceBtn) { raceBtn.textContent = 'Race!'; raceBtn.disabled = false; }
+                if (startBtn) { startBtn.textContent = 'Select Car & Race'; startBtn.disabled = false; }
+                startGame();
+            }
+        }, 200);
+        return;
+    }
     initAudio();
     hideAllMenus();
     show(hud);
